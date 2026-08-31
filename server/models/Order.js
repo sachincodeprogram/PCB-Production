@@ -40,12 +40,15 @@ const stageHistorySchema = new mongoose.Schema(
     receivedQuantity: {
       type: Number,
     },
+    completedQuantity: {
+      type: Number,
+    },
     completedDate: {
       type: Date,
     },
     updatedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      type: String,
+      trim: true,
     },
   },
   { _id: false, timestamps: true }
