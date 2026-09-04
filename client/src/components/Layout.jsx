@@ -38,6 +38,17 @@ const ICONS = {
       <path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   ),
+  history: (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 8v5l3 2M21 12a9 9 0 11-3.5-7.13M3 4v5h5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
 };
 
 const NAV_ITEMS = {
@@ -52,7 +63,10 @@ const NAV_ITEMS = {
     { to: '/orders/new', label: 'New Order', icon: ICONS.newOrder },
     { to: '/departments', label: 'Departments', icon: ICONS.departments },
   ],
-  team: [{ to: '/team', label: 'My Department', icon: ICONS.team }],
+  team: [
+    { to: '/team', label: 'My Department', icon: ICONS.team },
+    { to: '/team/history', label: 'Completed Orders', icon: ICONS.history },
+  ],
 };
 
 export default function Layout() {
@@ -88,7 +102,7 @@ export default function Layout() {
               to={item.to}
               className={({ isActive }) => `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`}
               onClick={() => setMenuOpen(false)}
-              end={item.to === '/orders'}
+              end={item.to === '/orders' || item.to === '/team'}
             >
               <span className="sidebar-link-icon">{item.icon}</span>
               {item.label}

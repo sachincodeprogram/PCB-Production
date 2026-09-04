@@ -626,6 +626,11 @@ select:focus {
   color: var(--green);
 }
 
+.summary-red .summary-icon {
+  background: var(--red-bg);
+  color: var(--red);
+}
+
 .summary-value {
   font-size: 1.6rem;
   font-weight: 700;
@@ -660,6 +665,19 @@ select:focus {
   border: 1px solid var(--border);
   border-radius: 8px;
   min-width: 160px;
+}
+
+.toolbar-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.toolbar-date-field .toolbar-select {
+  min-width: 150px;
 }
 
 /* ---------- Table ---------- */
@@ -702,6 +720,56 @@ select:focus {
 
 .clickable-row:hover {
   background: var(--accent-soft);
+}
+
+.expand-toggle {
+  color: var(--navy-accent);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.action-log-row td {
+  white-space: normal;
+  padding: 14px 16px;
+  background: var(--bg);
+}
+
+.action-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.action-log-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--navy-accent);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.action-log-date {
+  font-weight: 600;
+  color: var(--navy-900);
+  font-size: 0.85rem;
+  min-width: 170px;
+}
+
+.action-log-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.action-log-by {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-style: italic;
 }
 
 .mono {
@@ -1005,6 +1073,11 @@ select:focus {
   color: #fff;
 }
 
+.metric-chip-yellow {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
 /* ---------- Tabs ---------- */
 .tabs {
   display: flex;
@@ -1090,6 +1163,162 @@ select:focus {
   margin-top: 6px;
 }
 
+/* ---------- Modal stat blocks ---------- */
+.modal-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+.modal-stat {
+  border-radius: var(--radius-sm);
+  padding: 12px 10px;
+  text-align: center;
+  background: var(--grey-bg);
+}
+
+.modal-stat-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.modal-stat-value {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--navy-900);
+}
+
+.modal-stat-green {
+  background: var(--green-bg);
+}
+.modal-stat-green .modal-stat-value {
+  color: var(--green);
+}
+
+.modal-stat-red {
+  background: var(--red-bg);
+}
+.modal-stat-red .modal-stat-value {
+  color: var(--red);
+}
+
+.modal-stat-yellow {
+  background: var(--yellow-bg);
+}
+.modal-stat-yellow .modal-stat-value {
+  color: var(--yellow);
+}
+
+.modal-stat-warning {
+  margin: -10px 0 16px;
+  color: var(--red);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.modal-progress-note {
+  background: var(--accent-soft);
+  color: var(--navy-800);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  margin: -6px 0 14px;
+}
+
+.modal-outcome-note {
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin: -10px 0 16px;
+}
+
+.modal-outcome-forward {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
+.modal-outcome-stay {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+
+/* ---------- Stage alert (current pending team) ---------- */
+.stage-alert {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(135deg, var(--yellow-bg), var(--card-bg));
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--yellow);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 16px 20px;
+  margin-bottom: 22px;
+}
+
+.stage-alert-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--yellow-bg);
+  color: var(--yellow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stage-alert-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.stage-alert-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.stage-alert-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.stage-alert-main {
+  font-size: 1.05rem;
+  color: var(--navy-900);
+  margin-top: 2px;
+}
+
+.stage-alert-value {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.stage-alert-value .summary-value {
+  color: var(--yellow);
+}
+
+.stage-alert-done {
+  border-left-color: var(--green);
+  background: linear-gradient(135deg, var(--green-bg), var(--card-bg));
+}
+
+.stage-alert-done .stage-alert-icon {
+  background: var(--green-bg);
+  color: var(--green);
+}
+
 /* ---------- Toasts ---------- */
 .toast-stack {
   position: fixed;
@@ -1136,6 +1365,14 @@ select:focus {
 
   .summary-row {
     grid-template-columns: 1fr;
+  }
+
+  .modal-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-alert {
+    flex-wrap: wrap;
   }
 }
 

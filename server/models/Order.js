@@ -24,6 +24,32 @@ async function generateOrderUniqueId() {
   return `PCB-${letter}${paddedNumber}`;
 }
 
+const stageActionSchema = new mongoose.Schema(
+  {
+    completedQuantity: {
+      type: Number,
+      required: true,
+    },
+    defectQuantity: {
+      type: Number,
+      required: true,
+    },
+    pendingQuantityAfter: {
+      type: Number,
+      required: true,
+    },
+    updatedBy: {
+      type: String,
+      trim: true,
+    },
+    actionDate: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
 const stageHistorySchema = new mongoose.Schema(
   {
     stageNumber: {
@@ -43,12 +69,22 @@ const stageHistorySchema = new mongoose.Schema(
     completedQuantity: {
       type: Number,
     },
+    defectQuantity: {
+      type: Number,
+    },
+    pendingQuantity: {
+      type: Number,
+    },
     completedDate: {
       type: Date,
     },
     updatedBy: {
       type: String,
       trim: true,
+    },
+    actions: {
+      type: [stageActionSchema],
+      default: [],
     },
   },
   { _id: false, timestamps: true }

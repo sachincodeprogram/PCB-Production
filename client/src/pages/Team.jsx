@@ -17,6 +17,7 @@ export default function Team() {
   const [stageName, setStageName] = useState('');
   const [confirmOrder, setConfirmOrder] = useState(null);
   const [completedQuantity, setCompletedQuantity] = useState('');
+  const [defectQuantity, setDefectQuantity] = useState('');
   const [completing, setCompleting] = useState(false);
 
   const fetchOrders = useCallback(async () => {
@@ -40,6 +41,19 @@ export default function Team() {
   }, [fetchOrders]);
 
   useEffect(() => {
+    const onFocus = () => fetchOrders();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchOrders();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [fetchOrders]);
+
+  useEffect(() => {
     (async () => {
       try {
         const { data } = await api.get('/stages');
@@ -58,28 +72,52 @@ export default function Team() {
       toast.error('Enter a valid completed quantity');
       return;
     }
-    if (qty > confirmOrder.receivedQuantity) {
-      toast.error('Completed quantity cannot exceed received quantity');
+    const defQty = Number(defectQuantity);
+    if (defectQuantity === '' || !Number.isFinite(defQty) || defQty < 0) {
+      toast.error('Enter a valid defect quantity');
       return;
     }
+    if (qty + defQty > confirmOrder.pendingQuantity) {
+      toast.error(`Completed + Defect quantity cannot exceed the pending quantity (${confirmOrder.pendingQuantity})`);
+      return;
+    }
+    const willForward = qty + defQty === confirmOrder.pendingQuantity;
     setCompleting(true);
     try {
-      await api.post(`/team/complete/${confirmOrder.orderId}`, { completedQuantity: qty });
-      toast.success(`${confirmOrder.orderUniqueId} marked complete and forwarded`);
+      await api.post(`/team/complete/${confirmOrder.orderId}`, { completedQuantity: qty, defectQuantity: defQty });
+      toast.success(
+        willForward
+          ? `${confirmOrder.orderUniqueId} marked complete and forwarded`
+          : `${confirmOrder.orderUniqueId} progress saved — still pending at this stage`
+      );
       setConfirmOrder(null);
       setCompletedQuantity('');
+      setDefectQuantity('');
       fetchOrders();
     } catch (err) {
-      toast.error(extractErrorMessage(err, 'Failed to mark order complete'));
+      toast.error(extractErrorMessage(err, 'Failed to save progress'));
     } finally {
       setCompleting(false);
     }
   };
 
-  const defectQuantity =
-    confirmOrder && completedQuantity !== '' && Number.isFinite(Number(completedQuantity))
-      ? Math.max(confirmOrder.receivedQuantity - Number(completedQuantity), 0)
+  const pendingQuantity =
+    confirmOrder &&
+    completedQuantity !== '' &&
+    defectQuantity !== '' &&
+    Number.isFinite(Number(completedQuantity)) &&
+    Number.isFinite(Number(defectQuantity))
+      ? confirmOrder.pendingQuantity - Number(completedQuantity) - Number(defectQuantity)
       : null;
+  const pendingIsNegative = typeof pendingQuantity === 'number' && pendingQuantity < 0;
+  const willForwardNow = typeof pendingQuantity === 'number' && pendingQuantity === 0;
+
+  const totalPendingQuantity = orders.reduce((sum, o) => sum + (o.pendingQuantity ?? o.receivedQuantity ?? 0), 0);
+  const oldestReceivedDate = orders.reduce((oldest, o) => {
+    if (!o.receivedDate) return oldest;
+    const d = new Date(o.receivedDate);
+    return !oldest || d < oldest ? d : oldest;
+  }, null);
 
   return (
     <div>
@@ -87,6 +125,62 @@ export default function Team() {
         <div>
           <h1>{stageName || 'My Department'}</h1>
           <p className="page-subtitle">{user?.name}</p>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={fetchOrders} disabled={loading}>
+          ↻ Refresh
+        </button>
+      </div>
+
+      <div className="summary-row">
+        <div className="summary-card">
+          <div className="summary-icon">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M4 6h16M4 12h16M4 18h10"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <div className="summary-value">{orders.length}</div>
+            <div className="summary-label">Orders Awaiting Action</div>
+          </div>
+        </div>
+        <div className="summary-card summary-yellow">
+          <div className="summary-icon">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 7v5l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <div className="summary-value">{totalPendingQuantity}</div>
+            <div className="summary-label">Total Pending Quantity</div>
+          </div>
+        </div>
+        <div className="summary-card">
+          <div className="summary-icon">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M8 2v4M16 2v4M3.5 9h17M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <div className="summary-value">{oldestReceivedDate ? formatDate(oldestReceivedDate) : '—'}</div>
+            <div className="summary-label">Oldest Waiting Since</div>
+          </div>
         </div>
       </div>
 
@@ -105,6 +199,7 @@ export default function Team() {
                   <th>Company</th>
                   <th>Received Date</th>
                   <th>Received Quantity</th>
+                  <th>Pending Quantity</th>
                   <th></th>
                 </tr>
               </thead>
@@ -117,14 +212,22 @@ export default function Team() {
                     <td>{formatDate(order.receivedDate)}</td>
                     <td>{order.receivedQuantity}</td>
                     <td>
+                      <span className="metric-chip metric-chip-yellow">
+                        <span className="metric-chip-value">{order.pendingQuantity}</span>
+                      </span>
+                    </td>
+                    <td>
                       <button
                         className="btn btn-primary btn-sm"
                         onClick={() => {
                           setConfirmOrder(order);
-                          setCompletedQuantity(String(order.receivedQuantity));
+                          setCompletedQuantity(String(order.pendingQuantity));
+                          setDefectQuantity('0');
                         }}
                       >
-                        Mark Complete &amp; Forward
+                        {order.completedQuantitySoFar > 0 || order.defectQuantitySoFar > 0
+                          ? 'Continue & Complete'
+                          : 'Mark Complete & Forward'}
                       </button>
                     </td>
                   </tr>
@@ -142,47 +245,86 @@ export default function Team() {
             if (completing) return;
             setConfirmOrder(null);
             setCompletedQuantity('');
+            setDefectQuantity('');
           }}
         >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Confirm Completion</h3>
+            <h3>Update Stage Progress</h3>
             <p>
-              Mark order <strong>{confirmOrder.orderUniqueId}</strong> ({confirmOrder.pcbName}) as complete at this
-              stage and forward it to the next stage.
+              Log completed &amp; defect quantity for <strong>{confirmOrder.orderUniqueId}</strong> (
+              {confirmOrder.pcbName}) at this stage.
             </p>
             <label className="field">
               <span className="field-label">Received Quantity</span>
               <input type="number" value={confirmOrder.receivedQuantity} disabled />
             </label>
+            {(confirmOrder.completedQuantitySoFar > 0 || confirmOrder.defectQuantitySoFar > 0) && (
+              <p className="modal-progress-note">
+                Already logged so far: <strong>{confirmOrder.completedQuantitySoFar}</strong> completed,{' '}
+                <strong>{confirmOrder.defectQuantitySoFar}</strong> defect —{' '}
+                <strong>{confirmOrder.pendingQuantity}</strong> still pending.
+              </p>
+            )}
             <label className="field">
               <span className="field-label">Completed Quantity</span>
               <input
                 type="number"
                 min="0"
-                max={confirmOrder.receivedQuantity}
+                max={confirmOrder.pendingQuantity}
                 value={completedQuantity}
                 onChange={(e) => setCompletedQuantity(e.target.value)}
                 disabled={completing}
                 autoFocus
               />
             </label>
-            <p>
-              Defect Quantity = Received Quantity − Completed Quantity ={' '}
-              <strong>{defectQuantity ?? '—'}</strong>
-            </p>
+            <label className="field">
+              <span className="field-label">Defect Quantity</span>
+              <input
+                type="number"
+                min="0"
+                max={confirmOrder.pendingQuantity}
+                value={defectQuantity}
+                onChange={(e) => setDefectQuantity(e.target.value)}
+                disabled={completing}
+              />
+            </label>
+            <div className="modal-stats">
+              <div className="modal-stat modal-stat-green">
+                <span className="modal-stat-label">Completed</span>
+                <span className="modal-stat-value">{completedQuantity !== '' ? completedQuantity : '—'}</span>
+              </div>
+              <div className="modal-stat modal-stat-red">
+                <span className="modal-stat-label">Defect</span>
+                <span className="modal-stat-value">{defectQuantity !== '' ? defectQuantity : '—'}</span>
+              </div>
+              <div className="modal-stat modal-stat-yellow">
+                <span className="modal-stat-label">Pending Quantity</span>
+                <span className="modal-stat-value">{pendingQuantity ?? '—'}</span>
+              </div>
+            </div>
+            {pendingIsNegative ? (
+              <p className="modal-stat-warning">Completed + Defect exceeds the pending quantity.</p>
+            ) : (
+              <p className={`modal-outcome-note ${willForwardNow ? 'modal-outcome-forward' : 'modal-outcome-stay'}`}>
+                {willForwardNow
+                  ? 'All units accounted for — this will complete the stage and forward it to the next stage.'
+                  : 'This order will stay in your queue with the remaining pending quantity until fully processed.'}
+              </p>
+            )}
             <div className="modal-actions">
               <button
                 className="btn btn-ghost"
                 onClick={() => {
                   setConfirmOrder(null);
                   setCompletedQuantity('');
+                  setDefectQuantity('');
                 }}
                 disabled={completing}
               >
                 Cancel
               </button>
               <button className="btn btn-primary" onClick={handleComplete} disabled={completing}>
-                {completing ? 'Processing…' : 'Confirm'}
+                {completing ? 'Saving…' : willForwardNow ? 'Confirm & Forward' : 'Save Progress'}
               </button>
             </div>
           </div>

@@ -19,6 +19,13 @@ export default function Orders() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
 
+  const getCurrentPending = (order) => {
+    if (order.status !== 'in-progress') return null;
+    const entry = order.stageHistory?.find((h) => h.stageNumber === order.currentStage);
+    if (!entry) return null;
+    return typeof entry.pendingQuantity === 'number' ? entry.pendingQuantity : entry.receivedQuantity;
+  };
+
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
@@ -136,25 +143,38 @@ export default function Orders() {
                   <th>Order Date</th>
                   <th>Dispatch Date</th>
                   <th>Current Stage</th>
+                  <th>Pending Qty</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => (
-                  <tr key={order._id} className="clickable-row" onClick={() => navigate(`/orders/${order._id}`)}>
-                    <td className="mono">{order.orderUniqueId}</td>
-                    <td>{order.companyName}</td>
-                    <td>{order.pcbName}</td>
-                    <td>{order.pcbType}</td>
-                    <td>{order.quantity}</td>
-                    <td>{formatDate(order.orderDate)}</td>
-                    <td>{formatDate(order.dispatchDate)}</td>
-                    <td>{order.currentStageName || `Stage ${order.currentStage}`}</td>
-                    <td>
-                      <StatusBadge status={order.status} />
-                    </td>
-                  </tr>
-                ))}
+                {orders.map((order) => {
+                  const pending = getCurrentPending(order);
+                  return (
+                    <tr key={order._id} className="clickable-row" onClick={() => navigate(`/orders/${order._id}`)}>
+                      <td className="mono">{order.orderUniqueId}</td>
+                      <td>{order.companyName}</td>
+                      <td>{order.pcbName}</td>
+                      <td>{order.pcbType}</td>
+                      <td>{order.quantity}</td>
+                      <td>{formatDate(order.orderDate)}</td>
+                      <td>{formatDate(order.dispatchDate)}</td>
+                      <td>{order.currentStageName || `Stage ${order.currentStage}`}</td>
+                      <td>
+                        {pending !== null ? (
+                          <span className="metric-chip metric-chip-yellow">
+                            <span className="metric-chip-value">{pending}</span>
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        <StatusBadge status={order.status} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

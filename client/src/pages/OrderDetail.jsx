@@ -43,8 +43,26 @@ export default function OrderDetail() {
 
   const historyByStage = new Map(order.stageHistory.map((h) => [h.stageNumber, h]));
   const finalStageNumber = stages.length > 0 ? Math.max(...stages.map((s) => s.stageNumber)) : null;
-  const totalDefectQuantity = order.stageHistory.reduce(
-    (sum, h) => (typeof h.completedQuantity === 'number' ? sum + (h.receivedQuantity - h.completedQuantity) : sum),
+  const getDefectQuantity = (h) =>
+    typeof h.defectQuantity === 'number'
+      ? h.defectQuantity
+      : typeof h.completedQuantity === 'number'
+        ? h.receivedQuantity - h.completedQuantity
+        : null;
+  const getPendingQuantity = (h) =>
+    typeof h.pendingQuantity === 'number'
+      ? h.pendingQuantity
+      : typeof h.completedQuantity === 'number'
+        ? h.receivedQuantity - h.completedQuantity - (getDefectQuantity(h) ?? 0)
+        : null;
+  const totalDefectQuantity = order.stageHistory.reduce((sum, h) => sum + (getDefectQuantity(h) ?? 0), 0);
+  const currentEntry = historyByStage.get(order.currentStage);
+  const currentStagePending =
+    order.status === 'in-progress' && currentEntry
+      ? (getPendingQuantity(currentEntry) ?? currentEntry.receivedQuantity)
+      : 0;
+  const totalPendingQuantity = order.stageHistory.reduce(
+    (sum, h) => sum + (getPendingQuantity(h) ?? h.receivedQuantity ?? 0),
     0
   );
 
@@ -58,6 +76,85 @@ export default function OrderDetail() {
           <h1>{order.orderUniqueId}</h1>
         </div>
         <StatusBadge status={order.status} />
+      </div>
+
+      {order.status === 'in-progress' && currentEntry && (
+        <div className="stage-alert">
+          <div className="stage-alert-icon">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 7v5l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div className="stage-alert-body">
+            <div className="stage-alert-title">Currently Awaiting Action</div>
+            <div className="stage-alert-main">
+              <strong>{order.currentStageName || `Stage ${order.currentStage}`}</strong> team has this order
+            </div>
+          </div>
+          <div className="stage-alert-value">
+            <div className="summary-value">{currentStagePending}</div>
+            <div className="summary-label">Pending Quantity</div>
+          </div>
+        </div>
+      )}
+
+      <div className="summary-row">
+        <div className="summary-card">
+          <div className="summary-icon">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M4 6h16M4 12h16M4 18h10"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <div className="summary-value">{order.quantity}</div>
+            <div className="summary-label">Order Quantity</div>
+          </div>
+        </div>
+        <div className="summary-card summary-red">
+          <div className="summary-icon">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a1 1 0 00.87 1.5h18.62a1 1 0 00.87-1.5L13.71 3.86a1 1 0 00-1.73 0z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <div className="summary-value">{totalDefectQuantity}</div>
+            <div className="summary-label">Total Defect Quantity</div>
+          </div>
+        </div>
+        <div className="summary-card summary-yellow">
+          <div className="summary-icon">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 7v5l3.5 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <div className="summary-value">{totalPendingQuantity}</div>
+            <div className="summary-label">Total Pending Quantity</div>
+          </div>
+        </div>
       </div>
 
       <div className="card">
@@ -143,28 +240,33 @@ export default function OrderDetail() {
                         <span className="metric-chip metric-chip-blue">
                           Received Qty <span className="metric-chip-value">{entry.receivedQuantity}</span>
                         </span>
-                        {isCompleted && (
+                        {typeof entry.completedQuantity === 'number' ? (
                           <>
                             <span className="metric-chip metric-chip-green">
-                              Completed Qty{' '}
-                              <span className="metric-chip-value">{entry.completedQuantity ?? '—'}</span>
+                              Completed Qty <span className="metric-chip-value">{entry.completedQuantity}</span>
                             </span>
                             <span
                               className={`metric-chip ${
-                                typeof entry.completedQuantity === 'number' &&
-                                entry.receivedQuantity - entry.completedQuantity > 0
-                                  ? 'metric-chip-red'
-                                  : 'metric-chip-grey'
+                                (getDefectQuantity(entry) ?? 0) > 0 ? 'metric-chip-red' : 'metric-chip-grey'
                               }`}
                             >
-                              Defect Qty{' '}
-                              <span className="metric-chip-value">
-                                {typeof entry.completedQuantity === 'number'
-                                  ? entry.receivedQuantity - entry.completedQuantity
-                                  : '—'}
-                              </span>
+                              Defect Qty <span className="metric-chip-value">{getDefectQuantity(entry) ?? '—'}</span>
+                            </span>
+                            <span
+                              className={`metric-chip ${
+                                (getPendingQuantity(entry) ?? 0) > 0 ? 'metric-chip-yellow' : 'metric-chip-grey'
+                              }`}
+                            >
+                              Pending Qty{' '}
+                              <span className="metric-chip-value">{getPendingQuantity(entry) ?? '—'}</span>
                             </span>
                           </>
+                        ) : (
+                          isCurrent && (
+                            <span className="metric-chip metric-chip-yellow">
+                              Pending Qty <span className="metric-chip-value">{entry.receivedQuantity}</span>
+                            </span>
+                          )
                         )}
                         {stage.stageNumber === finalStageNumber && (
                           <span className="metric-chip metric-chip-navy">

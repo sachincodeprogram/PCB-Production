@@ -8,6 +8,7 @@ import Orders from './pages/Orders';
 import NewOrder from './pages/NewOrder';
 import OrderDetail from './pages/OrderDetail';
 import Team from './pages/Team';
+import TeamHistory from './pages/TeamHistory';
 import Departments from './pages/Departments';
 import Users from './pages/Users';
 
@@ -75,6 +76,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={['team']}>
               <Team />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/team/history"
+          element={
+            <ProtectedRoute allowedRoles={['team']}>
+              <TeamHistory />
             </ProtectedRoute>
           }
         />
