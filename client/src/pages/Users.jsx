@@ -201,6 +201,7 @@ export default function Users() {
   const [userModal, setUserModal] = useState(null);
   const [stageModal, setStageModal] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [movingId, setMovingId] = useState(null);
 
   const stageNameByNumber = useCallback(
     (num) => stages.find((s) => s.stageNumber === num)?.stageName || (num ? `Stage ${num}` : '—'),
@@ -232,6 +233,22 @@ export default function Users() {
       fetchAll();
     } catch (err) {
       toast.error(extractErrorMessage(err, 'Failed to update user'));
+    }
+  };
+
+  const handleMoveStage = async (stage, direction) => {
+    setMovingId(stage._id);
+    try {
+      const res = await api.patch(`/stages/${stage._id}/move`, { direction });
+      setStages(res.data);
+      // Team members follow their stage to its new number.
+      const usersRes = await api.get('/users');
+      setUsers(usersRes.data);
+      toast.success(`${stage.stageName} moved ${direction}`);
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Failed to reorder stage'));
+    } finally {
+      setMovingId(null);
     }
   };
 
@@ -331,16 +348,49 @@ export default function Users() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Stage Number</th>
+                <th>Sequence</th>
                 <th>Stage Name</th>
+                <th>Team</th>
+                <th>Reorder</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {stages.map((s) => (
+              {stages.map((s, idx) => {
+                const members = users.filter((u) => u.role === 'team' && u.assignedStage === s.stageNumber);
+                return (
                 <tr key={s._id}>
-                  <td>{s.stageNumber}</td>
+                  <td>
+                    <span className="stage-seq">{s.stageNumber}</span>
+                  </td>
                   <td>{s.stageName}</td>
+                  <td className="text-muted">
+                    {members.length === 0 ? '—' : `${members.length} member${members.length > 1 ? 's' : ''}`}
+                  </td>
+                  <td>
+                    <div className="reorder-btns">
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        title="Move up"
+                        aria-label={`Move ${s.stageName} up`}
+                        disabled={idx === 0 || movingId !== null}
+                        onClick={() => handleMoveStage(s, 'up')}
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        title="Move down"
+                        aria-label={`Move ${s.stageName} down`}
+                        disabled={idx === stages.length - 1 || movingId !== null}
+                        onClick={() => handleMoveStage(s, 'down')}
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  </td>
                   <td className="row-actions">
                     <button
                       className="btn btn-ghost btn-sm"
@@ -353,7 +403,8 @@ export default function Users() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

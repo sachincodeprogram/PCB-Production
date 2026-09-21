@@ -787,6 +787,56 @@ select:focus {
   gap: 8px;
 }
 
+.text-muted {
+  color: var(--text-muted);
+}
+
+.stage-seq {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--navy-accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.reorder-btns {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--navy-accent);
+  color: var(--navy-accent);
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* ---------- Badges ---------- */
 .badge {
   display: inline-block;

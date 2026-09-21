@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Stage = require('../models/Stage');
 const Order = require('../models/Order');
+const User = require('../models/User');
 
 const isNonEmptyString = (value) => typeof value === 'string' && value.trim().length > 0;
 const isPositiveInteger = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
@@ -136,4 +137,87 @@ const deleteStage = async (req, res) => {
   }
 };
 
-module.exports = { getStages, createStage, updateStage, deleteStage };
+// Moves a stage one position up/down in the workflow by swapping its stageNumber with
+// its neighbour. stageNumber is the key that users (assignedStage) and orders
+// (currentStage, stageHistory) point at, so those references are swapped too — the team
+// stays with its stage and history stays attached to the right department.
+const moveStage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { direction } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid stage id' });
+    }
+    if (direction !== 'up' && direction !== 'down') {
+      return res.status(400).json({ message: "direction must be 'up' or 'down'" });
+    }
+
+    const stage = await Stage.findById(id);
+    if (!stage) {
+      return res.status(404).json({ message: 'Stage not found' });
+    }
+
+    const neighbour =
+      direction === 'up'
+        ? await Stage.findOne({ stageNumber: { $lt: stage.stageNumber } }).sort({ stageNumber: -1 })
+        : await Stage.findOne({ stageNumber: { $gt: stage.stageNumber } }).sort({ stageNumber: 1 });
+
+    if (!neighbour) {
+      return res.status(400).json({
+        message: direction === 'up' ? 'Stage is already first' : 'Stage is already last',
+      });
+    }
+
+    // Batches in flight are routed by stageNumber order, so re-sequencing mid-production
+    // would send work to the wrong department.
+    const activeOrderCount = await Order.countDocuments({ status: 'in-progress' });
+    if (activeOrderCount > 0) {
+      return res.status(409).json({
+        message: `Cannot reorder stages: ${activeOrderCount} order(s) are still in progress`,
+      });
+    }
+
+    const a = stage.stageNumber;
+    const b = neighbour.stageNumber;
+    const swap = (field) => ({ $cond: [{ $eq: [field, a] }, b, { $cond: [{ $eq: [field, b] }, a, field] }] });
+
+    // stageNumber is unique, so park one stage on a temporary number during the swap.
+    const highest = await Stage.findOne().sort({ stageNumber: -1 });
+    await Stage.updateOne({ _id: stage._id }, { stageNumber: highest.stageNumber + 1 });
+    await Stage.updateOne({ _id: neighbour._id }, { stageNumber: a });
+    await Stage.updateOne({ _id: stage._id }, { stageNumber: b });
+
+    await User.updateMany(
+      { role: 'team', assignedStage: { $in: [a, b] } },
+      [{ $set: { assignedStage: swap('$assignedStage') } }],
+      { timestamps: false }
+    );
+
+    await Order.updateMany(
+      { $or: [{ currentStage: { $in: [a, b] } }, { 'stageHistory.stageNumber': { $in: [a, b] } }] },
+      [
+        { $set: { currentStage: swap('$currentStage') } },
+        {
+          $set: {
+            stageHistory: {
+              $map: {
+                input: '$stageHistory',
+                as: 'h',
+                in: { $mergeObjects: ['$$h', { stageNumber: swap('$$h.stageNumber') }] },
+              },
+            },
+          },
+        },
+      ],
+      { timestamps: false }
+    );
+
+    const stages = await Stage.find().sort({ stageNumber: 1 });
+    res.json(stages);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+module.exports = { getStages, createStage, updateStage, deleteStage, moveStage };
