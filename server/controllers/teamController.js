@@ -2,13 +2,18 @@ const mongoose = require('mongoose');
 const Order = require('../models/Order');
 const Stage = require('../models/Stage');
 
-const findCurrentStageEntry = (order) => {
+const findStageEntry = (order, stageNumber) => {
   for (let i = order.stageHistory.length - 1; i >= 0; i--) {
-    if (order.stageHistory[i].stageNumber === order.currentStage) {
+    if (order.stageHistory[i].stageNumber === stageNumber) {
       return order.stageHistory[i];
     }
   }
   return null;
+};
+
+const derivedPending = (entry) => {
+  if (!entry) return null;
+  return entry.receivedQuantity - (entry.completedQuantity || 0) - (entry.defectQuantity || 0);
 };
 
 const getMyOrders = async (req, res) => {
@@ -19,29 +24,34 @@ const getMyOrders = async (req, res) => {
       return res.status(400).json({ message: 'No stage assigned to this user' });
     }
 
+    // An order can have pending quantity at more than one stage at once now —
+    // a team forwards its completed portion immediately and keeps the rest —
+    // so a team's queue is driven by their own stage's entry, not order.currentStage.
     const orders = await Order.find({
-      currentStage: assignedStage,
       status: 'in-progress',
+      stageHistory: { $elemMatch: { stageNumber: assignedStage } },
     }).sort({ createdAt: -1 });
 
-    const result = orders.map((order) => {
-      const entry = findCurrentStageEntry(order);
-      const completedSoFar = entry?.completedQuantity || 0;
-      const defectSoFar = entry?.defectQuantity || 0;
-      const pendingQuantity = entry ? entry.receivedQuantity - completedSoFar - defectSoFar : null;
-      return {
-        orderId: order._id,
-        orderUniqueId: order.orderUniqueId,
-        pcbName: order.pcbName,
-        pcbType: order.pcbType,
-        companyName: order.companyName,
-        receivedDate: entry ? entry.receivedDate : null,
-        receivedQuantity: entry ? entry.receivedQuantity : null,
-        completedQuantitySoFar: completedSoFar,
-        defectQuantitySoFar: defectSoFar,
-        pendingQuantity,
-      };
-    });
+    const result = orders
+      .map((order) => {
+        const entry = findStageEntry(order, assignedStage);
+        const completedSoFar = entry?.completedQuantity || 0;
+        const defectSoFar = entry?.defectQuantity || 0;
+        const pendingQuantity = entry ? entry.receivedQuantity - completedSoFar - defectSoFar : null;
+        return {
+          orderId: order._id,
+          orderUniqueId: order.orderUniqueId,
+          pcbName: order.pcbName,
+          pcbType: order.pcbType,
+          companyName: order.companyName,
+          receivedDate: entry ? entry.receivedDate : null,
+          receivedQuantity: entry ? entry.receivedQuantity : null,
+          completedQuantitySoFar: completedSoFar,
+          defectQuantitySoFar: defectSoFar,
+          pendingQuantity,
+        };
+      })
+      .filter((r) => r.pendingQuantity > 0);
 
     res.json(result);
   } catch (error) {
@@ -134,16 +144,11 @@ const completeStage = async (req, res) => {
       return res.status(400).json({ message: 'This order is already completed' });
     }
 
-    if (order.currentStage !== req.user.assignedStage) {
+    const assignedStage = req.user.assignedStage;
+    const currentEntry = findStageEntry(order, assignedStage);
+    if (!currentEntry || derivedPending(currentEntry) <= 0) {
       return res.status(403).json({
-        message: 'Forbidden: this order is not currently at your assigned stage',
-      });
-    }
-
-    const currentEntry = findCurrentStageEntry(order);
-    if (!currentEntry) {
-      return res.status(500).json({
-        message: 'Data inconsistency: no stageHistory entry found for the current stage',
+        message: 'Forbidden: this order has no pending quantity at your assigned stage',
       });
     }
 
@@ -169,8 +174,7 @@ const completeStage = async (req, res) => {
       return res.status(400).json({ message: 'defectQuantity is required and must be a non-negative number' });
     }
 
-    // This submission adds to whatever the team has already logged for this stage entry —
-    // an order stays at the current stage until its pending quantity reaches zero.
+    // This submission adds to whatever the team has already logged for this stage entry.
     const priorCompleted = currentEntry.completedQuantity || 0;
     const priorDefect = currentEntry.defectQuantity || 0;
     const remainingBeforeSubmission = currentEntry.receivedQuantity - priorCompleted - priorDefect;
@@ -197,29 +201,68 @@ const completeStage = async (req, res) => {
       actionDate: new Date(),
     });
 
-    if (newPendingQuantity > 0) {
+    if (newPendingQuantity <= 0) {
+      currentEntry.completedDate = new Date();
+    } else {
       // Still work remaining at this stage — keep the order in this team's queue.
-      await order.save();
-      return res.json(order);
+      currentEntry.completedDate = undefined;
     }
 
-    currentEntry.completedDate = new Date();
-
-    const nextStage = await Stage.findOne({ stageNumber: { $gt: order.currentStage } }).sort({
-      stageNumber: 1,
-    });
-
-    if (!nextStage) {
-      order.status = 'completed';
-    } else {
-      order.currentStage = nextStage.stageNumber;
-      order.currentStageName = nextStage.stageName;
-      order.stageHistory.push({
-        stageNumber: nextStage.stageNumber,
-        stageName: nextStage.stageName,
-        receivedDate: new Date(),
-        receivedQuantity: newCompletedTotal,
+    // Forward the portion completed in THIS submission immediately, even if some
+    // quantity remains pending at this stage — partial batches keep moving instead
+    // of waiting for the whole order to clear this team's queue.
+    if (numericCompletedQuantity > 0) {
+      const nextStage = await Stage.findOne({ stageNumber: { $gt: assignedStage } }).sort({
+        stageNumber: 1,
       });
+
+      if (nextStage) {
+        const nextEntry = findStageEntry(order, nextStage.stageNumber);
+        if (nextEntry) {
+          nextEntry.receivedQuantity = (nextEntry.receivedQuantity || 0) + numericCompletedQuantity;
+          const nextPending = derivedPending(nextEntry);
+          nextEntry.pendingQuantity = nextPending;
+          if (nextPending > 0) {
+            // Newly arrived quantity reopens a stage entry that had previously cleared.
+            nextEntry.completedDate = undefined;
+          }
+        } else {
+          order.stageHistory.push({
+            stageNumber: nextStage.stageNumber,
+            stageName: nextStage.stageName,
+            receivedDate: new Date(),
+            receivedQuantity: numericCompletedQuantity,
+            pendingQuantity: numericCompletedQuantity,
+            actions: [],
+          });
+        }
+      }
+    }
+
+    // Recompute the order's overall status and its "lead" stage (the earliest stage
+    // that still has pending quantity) from every stage entry, since work can now be
+    // pending at more than one stage at the same time.
+    let totalPending = 0;
+    let minPendingEntry = null;
+    let maxEntry = null;
+    for (const entry of order.stageHistory) {
+      const entryPending = derivedPending(entry);
+      totalPending += entryPending;
+      if (entryPending > 0 && (!minPendingEntry || entry.stageNumber < minPendingEntry.stageNumber)) {
+        minPendingEntry = entry;
+      }
+      if (!maxEntry || entry.stageNumber > maxEntry.stageNumber) {
+        maxEntry = entry;
+      }
+    }
+
+    if (totalPending <= 0) {
+      order.status = 'completed';
+      order.currentStage = maxEntry.stageNumber;
+      order.currentStageName = maxEntry.stageName;
+    } else {
+      order.currentStage = minPendingEntry.stageNumber;
+      order.currentStageName = minPendingEntry.stageName;
     }
 
     await order.save();

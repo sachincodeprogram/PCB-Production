@@ -202,8 +202,11 @@ export default function OrderDetail() {
         <div className="timeline">
           {stages.map((stage) => {
             const entry = historyByStage.get(stage.stageNumber);
-            const isCurrent = order.status === 'in-progress' && stage.stageNumber === order.currentStage;
             const isCompleted = !!entry?.completedDate;
+            // An order can now have real pending work at more than one stage at once
+            // (a partial batch forwards immediately, leaving the rest behind), so any
+            // stage with an open entry is "current", not just order.currentStage.
+            const isCurrent = order.status === 'in-progress' && !!entry && !isCompleted;
             const isPending = !entry;
 
             let stateClass = 'timeline-pending';

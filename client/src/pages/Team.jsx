@@ -81,14 +81,17 @@ export default function Team() {
       toast.error(`Completed + Defect quantity cannot exceed the pending quantity (${confirmOrder.pendingQuantity})`);
       return;
     }
-    const willForward = qty + defQty === confirmOrder.pendingQuantity;
+    const willFullyClear = qty + defQty === confirmOrder.pendingQuantity;
+    const willForwardSome = qty > 0;
     setCompleting(true);
     try {
       await api.post(`/team/complete/${confirmOrder.orderId}`, { completedQuantity: qty, defectQuantity: defQty });
       toast.success(
-        willForward
+        willFullyClear
           ? `${confirmOrder.orderUniqueId} marked complete and forwarded`
-          : `${confirmOrder.orderUniqueId} progress saved — still pending at this stage`
+          : willForwardSome
+            ? `${confirmOrder.orderUniqueId}: ${qty} unit(s) forwarded, remainder still pending at this stage`
+            : `${confirmOrder.orderUniqueId} progress saved — still pending at this stage`
       );
       setConfirmOrder(null);
       setCompletedQuantity('');
@@ -111,6 +114,9 @@ export default function Team() {
       : null;
   const pendingIsNegative = typeof pendingQuantity === 'number' && pendingQuantity < 0;
   const willForwardNow = typeof pendingQuantity === 'number' && pendingQuantity === 0;
+  const numericCompletedForForward =
+    completedQuantity !== '' && Number.isFinite(Number(completedQuantity)) ? Number(completedQuantity) : 0;
+  const willForwardSome = !pendingIsNegative && numericCompletedForForward > 0;
 
   const totalPendingQuantity = orders.reduce((sum, o) => sum + (o.pendingQuantity ?? o.receivedQuantity ?? 0), 0);
   const oldestReceivedDate = orders.reduce((oldest, o) => {
@@ -304,11 +310,18 @@ export default function Team() {
             </div>
             {pendingIsNegative ? (
               <p className="modal-stat-warning">Completed + Defect exceeds the pending quantity.</p>
+            ) : willForwardNow ? (
+              <p className="modal-outcome-note modal-outcome-forward">
+                All units accounted for — this completes your stage and forwards the full batch to the next stage.
+              </p>
+            ) : willForwardSome ? (
+              <p className="modal-outcome-note modal-outcome-forward">
+                {numericCompletedForForward} unit(s) will be forwarded to the next stage now — {pendingQuantity}{' '}
+                unit(s) will stay pending in your queue.
+              </p>
             ) : (
-              <p className={`modal-outcome-note ${willForwardNow ? 'modal-outcome-forward' : 'modal-outcome-stay'}`}>
-                {willForwardNow
-                  ? 'All units accounted for — this will complete the stage and forward it to the next stage.'
-                  : 'This order will stay in your queue with the remaining pending quantity until fully processed.'}
+              <p className="modal-outcome-note modal-outcome-stay">
+                This order will stay in your queue with the remaining pending quantity until fully processed.
               </p>
             )}
             <div className="modal-actions">
@@ -324,7 +337,11 @@ export default function Team() {
                 Cancel
               </button>
               <button className="btn btn-primary" onClick={handleComplete} disabled={completing}>
-                {completing ? 'Saving…' : willForwardNow ? 'Confirm & Forward' : 'Save Progress'}
+                {completing
+                  ? 'Saving…'
+                  : willForwardNow || willForwardSome
+                    ? 'Confirm & Forward'
+                    : 'Save Progress'}
               </button>
             </div>
           </div>
