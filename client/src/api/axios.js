@@ -18,6 +18,9 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      if (error.response.data?.code === 'DEVICE_NOT_APPROVED') {
+        sessionStorage.setItem('authNotice', error.response.data.message);
+      }
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }

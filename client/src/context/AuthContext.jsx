@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback } from 'react';
 import api from '../api/axios';
+import { getDeviceProof } from '../api/device';
 
 const AuthContext = createContext(null);
 
@@ -10,7 +11,8 @@ export function AuthProvider({ children }) {
   });
 
   const login = useCallback(async (userId, password) => {
-    const { data } = await api.post('/auth/login', { userId, password });
+    const device = await getDeviceProof();
+    const { data } = await api.post('/auth/login', { userId, password, device });
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     setUser(data.user);

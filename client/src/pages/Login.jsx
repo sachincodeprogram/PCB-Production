@@ -9,18 +9,29 @@ export default function Login() {
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => {
+    const notice = sessionStorage.getItem('authNotice') || '';
+    sessionStorage.removeItem('authNotice');
+    return notice;
+  });
+  const [deviceNotice, setDeviceNotice] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setDeviceNotice(null);
     setLoading(true);
     try {
       const user = await login(userId.trim(), password);
       navigate(user.role === 'team' ? '/team' : '/orders', { replace: true });
     } catch (err) {
-      setError(extractErrorMessage(err, 'Invalid credentials'));
+      const data = err?.response?.data;
+      if (data?.code === 'DEVICE_PENDING' || data?.code === 'DEVICE_BLOCKED') {
+        setDeviceNotice(data);
+      } else {
+        setError(extractErrorMessage(err, 'Invalid credentials'));
+      }
     } finally {
       setLoading(false);
     }
@@ -130,6 +141,20 @@ export default function Login() {
             </label>
 
             {error && <div className="form-error">{error}</div>}
+
+            {deviceNotice && (
+              <div className={`device-notice ${deviceNotice.code === 'DEVICE_BLOCKED' ? 'device-notice-blocked' : ''}`}>
+                <div className="device-notice-title">
+                  {deviceNotice.code === 'DEVICE_BLOCKED' ? 'Device blocked' : 'Device approval required'}
+                </div>
+                <p>
+                  {deviceNotice.code === 'DEVICE_BLOCKED'
+                    ? 'This system has been blocked. Contact your system administrator if this is a mistake.'
+                    : 'This system is not approved yet. Share this Device ID with your system administrator, then log in again after approval.'}
+                </p>
+                <div className="device-notice-code mono">{deviceNotice.deviceId}</div>
+              </div>
+            )}
 
             <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
               {loading ? 'Signing in…' : 'Login'}
