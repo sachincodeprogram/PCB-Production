@@ -7,11 +7,14 @@ const STAGES = [
   { stageNumber: 1, stageName: 'Shearing' },
   { stageNumber: 2, stageName: 'Brushing' },
   { stageNumber: 3, stageName: 'Etching' },
-  { stageNumber: 4, stageName: 'Circuit Printing' },
-  { stageNumber: 5, stageName: 'CCD Inspection' },
-  { stageNumber: 6, stageName: 'Mask Printing' },
-  { stageNumber: 7, stageName: 'CNC Routing' },
-  { stageNumber: 8, stageName: 'Final Inspection' },
+  { stageNumber: 4, stageName: 'Circuit Printing Department' },
+  { stageNumber: 5, stageName: 'CCD Department' },
+  { stageNumber: 6, stageName: 'BBT Testing Department' },
+  { stageNumber: 7, stageName: 'CNC Department routing/Drilling' },
+  { stageNumber: 8, stageName: 'V Grooving Department' },
+  { stageNumber: 9, stageName: 'Final Cleaning Department' },
+  { stageNumber: 10, stageName: 'OSP Department' },
+  { stageNumber: 11, stageName: 'Final Packing/Dispatch Department' },
 ];
 
 const seed = async () => {
